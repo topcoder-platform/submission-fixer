@@ -55,16 +55,7 @@ async function getRecord(legacySubmissionId) {
   }
   console.log(params)
   const dbClient = getDbClient()
-  return new Promise((resolve, reject) => {
-    dbClient.query(params, (err, data) => {
-      //  console.log('came back from dynamo with: ', err, data)
-      if (err) {
-        console.log(err)
-        reject(err)
-      }
-      resolve(data)
-    })
-  })
+  return await dbClient.query(params).promise()
 }
 
 async function moveFile(sourceBucket, sourceKey, targetBucket, targetKey) {
