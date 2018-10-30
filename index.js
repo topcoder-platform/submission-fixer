@@ -2,7 +2,6 @@ const fs = require('fs')
 const _ = require('lodash')
 const config = require('config')
 const moment = require('moment')
-  // const bluebird = require('bluebird')
 const AWS = require('aws-sdk')
 const AmazonS3URI = require('amazon-s3-uri')
 const s3ToURL = require('s3-public-url')
@@ -12,7 +11,6 @@ const m2mAuth = require('tc-core-library-js').auth.m2m
 const m2m = m2mAuth(_.pick(config, ['AUTH0_URL', 'AUTH0_AUDIENCE', 'TOKEN_CACHE_TIME']))
 
 const s3 = new AWS.S3()
-  // const s3p = bluebird.promisifyAll(s3)
 AWS.config.region = config.get('aws.REGION')
 
 
@@ -42,18 +40,23 @@ function getDbClient() {
 
 async function getRecord(legacySubmissionId) {
   const params = {
-    TableName: 'Submission',
-    FilterExpression: "legacySubmissionId = :val0",
-
+    TableName: "Submission",
+    IndexName: "legacySubmissionId-index",
+    ProjectionExpression: "#url, #id, #legacySubmissionId",
+    KeyConditionExpression: "#legacySubmissionId = :val0",
+    ExpressionAttributeNames: {
+      "#id": "id",
+      "#url": "url",
+      "#legacySubmissionId": "legacySubmissionId"
+    },
     ExpressionAttributeValues: {
       ":val0": parseInt(legacySubmissionId)
-
     }
-  };
+  }
   console.log(params)
   const dbClient = getDbClient()
   return new Promise((resolve, reject) => {
-    dbClient.scan(params, (err, data) => {
+    dbClient.query(params, (err, data) => {
       //  console.log('came back from dynamo with: ', err, data)
       if (err) {
         console.log(err)
@@ -70,12 +73,14 @@ async function moveFile(sourceBucket, sourceKey, targetBucket, targetKey) {
     Bucket: targetBucket,
     CopySource: `/${sourceBucket}/${sourceKey}`,
     Key: targetKey
+  }).promise().then((data) => {
+    console.log('moveop:', data)
   })
   console.log(`*** deleting file ${sourceBucket}/${sourceKey}`)
   return await s3.deleteObject({
     Bucket: sourceBucket,
     Key: sourceKey
-  })
+  }).promise()
 }
 
 async function postEvent(payload) {
